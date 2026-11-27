@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>입출금 기록부</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="입출금">
+<meta name="theme-color" content="#111111">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: 장부. 조용하고 정확하게, 숫자가 주인공
+   IDEA: 은행 통장 인자면 — 날짜·적요·찾으신금액·맡기신금액·잔액 줄
+   PICTURE: 첫 화면은 통장 4개 잔액과 이번 달 고정지출 체크 자체
+   COLOUR and TYPE: 흑백 바탕 + 의미색(통장 4색, 입금 파랑·출금 빨강·이체 회색, 상태색, 항목색). IBM Plex Sans KR
+   LAYOUT: 한 열, 하단 탭 4개, 하단 고정 입력 버튼 */
+:root{color-scheme:light dark;--bg:light-dark(#fff,#0f0f0f);--ink:light-dark(#111,#f1f1f1);--mut:light-dark(#6b6b6b,#9a9a9a);--line:light-dark(#d9d9d9,#333);--soft:light-dark(#f3f3f3,#1b1b1b)}
+:root{--in:light-dark(#1565c0,#6ea8ff);--out:light-dark(#d32f2f,#ff7a7a);--tr:light-dark(#757575,#a8a8a8);--s-mi:light-dark(#d32f2f,#ff6b6b);--s-ye:light-dark(#e07b00,#ffad4d);--s-wa:light-dark(#2e7d32,#6fcf75)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{width:100%;max-width:100%;overflow-x:hidden;overscroll-behavior-x:none}
+html{touch-action:pan-y;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "IBM Plex Sans KR",system-ui,sans-serif;overflow-x:clip;padding-bottom:calc(150px + env(safe-area-inset-bottom))}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+header{padding:calc(14px + env(safe-area-inset-top)) 18px 10px;border-bottom:3px double var(--ink);display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+h1{font-size:20px;margin:0;font-weight:700}
+.sub{color:var(--mut);font-size:13px}
+main{max-width:640px;margin:0 auto;padding:0 16px}
+h2{font-size:15px;margin:26px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--ink);display:flex;justify-content:space-between;align-items:center}
+.total{padding:20px 0 6px}.total .k{font-size:13px;color:var(--mut)}.total .v{font-size:clamp(24px,8.5vw,44px);white-space:normal;overflow-wrap:anywhere;font-weight:700;line-height:1.1;text-align:left}
+.accts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.acct{border:1px solid var(--line);border-left:6px solid var(--c);padding:12px;border-radius:6px;background:color-mix(in srgb,var(--c) 7%,var(--bg))}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--c);margin-right:6px;flex:none;vertical-align:middle}.acct b{display:block;font-size:14px}.acct span{font-size:12px;color:var(--mut)}.acct .num{font-size:clamp(15px,4.8vw,19px);font-weight:700;text-align:left;margin-top:4px;white-space:normal;overflow-wrap:anywhere}
+.io{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:6px}.io>div{padding:10px 12px}.io>div+div{border-left:1px solid var(--line)}.io .k{font-size:12px;color:var(--mut)}.io .num{font-size:clamp(13px,4vw,16px);font-weight:700;text-align:left;white-space:normal;overflow-wrap:anywhere}.io>div{min-width:0}.io .cin{color:var(--in)}.io .cout{color:var(--out)}
+.row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.row .grow{flex:1;min-width:0;overflow-wrap:anywhere}.row .t{font-weight:500}.row .d{font-size:12px;color:var(--mut)}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--ink);white-space:nowrap}
+.tag.미납{background:var(--s-mi);border-color:var(--s-mi);color:#fff;font-weight:700}.tag.예정{border-color:var(--s-ye);color:var(--s-ye);font-weight:700}.tag.완료{border-color:var(--s-wa);color:var(--s-wa)}.tag.해당없음,.tag.대기{border-color:var(--line);color:var(--mut)}
+button,select,input{font:inherit;color:inherit}
+.btn{min-height:44px;padding:0 16px;border:1px solid var(--ink);background:var(--bg);border-radius:6px;cursor:pointer}
+.btn.pri{background:var(--ink);color:var(--bg)}.btn.sm{min-height:36px;padding:0 12px;font-size:14px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+#add{position:fixed;left:0;right:0;margin:0 auto;bottom:calc(72px + env(safe-area-inset-bottom));width:calc(100% - 32px);max-width:600px;height:54px;font-size:18px;font-weight:700;border-radius:8px;border:0;background:var(--ink);color:var(--bg);z-index:5}
+nav{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,1fr);background:var(--bg);border-top:1px solid var(--ink);padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav button{min-height:58px;border:0;background:none;font-size:14px;color:var(--mut)}nav button[aria-current=true]{color:var(--ink);font-weight:700;box-shadow:inset 0 3px 0 var(--ink)}
+.mnav{display:flex;align-items:center;justify-content:space-between;margin:16px 0 4px}.mnav b{font-size:18px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.chip{min-height:38px;padding:0 12px;border:1px solid var(--line);border-radius:99px;background:var(--bg);font-size:14px;cursor:pointer}.chip[aria-pressed=true]{background:var(--c,var(--ink));color:var(--t,var(--bg));border-color:var(--c,var(--ink));font-weight:700}.chip[aria-pressed=true] .dot{background:var(--t,var(--bg))}
+.day{font-size:12px;color:var(--mut);margin-top:14px;padding-bottom:2px;border-bottom:1px solid var(--ink)}
+.amt{font-weight:700}.amt.in{color:var(--in)}.amt.in::before{content:"+"}.amt.out{color:var(--out)}.amt.out::before{content:"−"}.amt.tr{color:var(--tr)}.amt.tr::before{content:"⇄ "}
+table{width:100%;border-collapse:collapse;font-size:clamp(12px,3.6vw,14px);table-layout:fixed}td.num{white-space:normal;overflow-wrap:anywhere}th,td{overflow-wrap:anywhere;padding:8px 4px;border-bottom:1px solid var(--line);text-align:left}th{font-weight:500;color:var(--mut);font-size:12px}td.num,th.num{text-align:right}
+.bar{height:6px;background:var(--soft);margin-top:4px}.bar i{display:block;height:100%;background:var(--c,var(--ink))}
+.empty{color:var(--mut);padding:18px 0;font-size:14px}
+.note{font-size:13px;border:1px dashed var(--ink);padding:10px 12px;margin:14px 0;border-radius:6px}
+label.f{display:block;margin:12px 0 0;font-size:13px;color:var(--mut)}
+.inp{display:block;max-width:100%;-webkit-appearance:none;appearance:none;width:100%;min-height:46px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);font-size:16px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fx{border:1px solid var(--line);border-radius:6px;padding:4px 12px 12px;margin-bottom:8px}
+#sheet{position:fixed;inset:0;background:rgb(0 0 0/.45);display:none;z-index:9;align-items:flex-end;justify-content:center}#sheet.on{display:flex}
+#sheet .pan{background:var(--bg);width:min(100%,640px);max-height:92vh;overflow:auto;border-radius:12px 12px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));border-top:3px double var(--ink)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--ink);border-radius:6px;overflow:hidden}.seg button{min-height:46px;border:0;background:var(--bg)}.seg button+button{border-left:1px solid var(--ink)}.seg button[data-ty=in]{color:var(--in)}.seg button[data-ty=out]{color:var(--out)}.seg button[data-ty=tr]{color:var(--tr)}.seg button[aria-pressed=true]{color:#fff;font-weight:700}.seg button[data-ty=in][aria-pressed=true]{background:var(--in)}.seg button[data-ty=out][aria-pressed=true]{background:var(--out)}.seg button[data-ty=tr][aria-pressed=true]{background:var(--tr)}
+.big{font-size:clamp(22px,7vw,28px);font-weight:700;text-align:right}
+.acts{display:flex;gap:8px;margin-top:18px}.acts .btn{flex:1}
+#toast{position:fixed;left:16px;right:16px;margin:0 auto;width:fit-content;max-width:calc(100% - 32px);text-align:center;bottom:140px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}#toast.on{opacity:1}
+@media(prefers-reduced-motion:reduce){#toast{transition:none}}
+[hidden]{display:none!important}
+.io.two{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:4px}
+.seg.s4{grid-template-columns:repeat(4,1fr)}.seg.m3{grid-template-columns:repeat(3,1fr);border-color:var(--line)}
+.seg button[data-ty=card]{color:#c2185b}.seg button[data-ty=card][aria-pressed=true]{background:#c2185b;color:#fff}
+.seg button[data-me]{min-height:42px;font-size:14px}.seg button[data-me][aria-pressed=true]{background:var(--ink);color:var(--bg);font-weight:700}
+.seg.m3 button+button{border-left-color:var(--line)}
+.cal{margin-top:8px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.wk,.grid7{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.wk span{text-align:center;font-size:12px;color:var(--mut);padding:6px 0;border-bottom:1px solid var(--line)}.wk span:first-child{color:var(--out)}.wk span:last-child{color:var(--in)}
+.cd{min-height:58px;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg);padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;overflow:hidden}
+.grid7>.cd:nth-child(7n){border-right:0}.cd.blank{cursor:default}
+.cd b{font-size:13px;font-weight:500}.cd.sun b{color:var(--out)}.cd.sat b{color:var(--in)}
+.cd i{font-style:normal;font-size:10px;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:clip}.cd .ci{color:var(--in)}.cd .co{color:var(--out)}
+.cd.today b{background:var(--ink);color:var(--bg);border-radius:99px;padding:0 6px}
+.cd.sel{background:color-mix(in srgb,var(--ink) 10%,var(--bg));box-shadow:inset 0 0 0 2px var(--ink)}
+h2 .btn.sm{font-weight:500}
+</style>
+</head>
+<body>
+<header><h1>입출금 기록부</h1><span class="sub" id="stat">불러오는 중…</span></header>
+<main>
+  <section id="v-home"></section>
+  <section id="v-cal" hidden></section>
+  <section id="v-list" hidden></section>
+  <section id="v-sum" hidden></section>
+  <section id="v-set" hidden></section>
+</main>
+<button id="add">+ 입력</button>
+<nav>
+  <button data-v="home" aria-current="true">홈</button><button data-v="cal">달력</button><button data-v="list">내역</button><button data-v="sum">요약</button><button data-v="set">설정</button>
+</nav>
+<div id="sheet" role="dialog" aria-modal="true" aria-label="거래 입력"><div class="pan" id="pan"></div></div>
+<div id="toast" role="status"></div>
+<script src="xlsx.bundle.js" defer></script>
+<script>
+const Core = (() => {
+  const ACCTS = [
+    { id: 'ibk', name: '기업은행', use: '급여' },
+    { id: 'kakao', name: '카카오뱅크', use: '용역' },
+    { id: 'kb', name: '국민은행', use: '사업자' },
+    { id: 'kbank', name: '케이뱅크', use: '통장협의회 급여' },
+  ];
+  const FIXED = ['자동차할부', '카드대금', '대출 상환', '학자금 상환'];
+  const IN_CATS = ['급여', '용역대금', '사업수입', '통장협의회 수당', '이자', '기타수입'];
+  const OUT_CATS = ['생활비', '세금', '사업경비', '기타지출'];
+  const COLORS = {
+    acct: { ibk: '#1f5fbf', kakao: '#e0b000', kb: '#8a5a2b', kbank: '#7b3fbf' },
+    tint: { ibk: 'DCE8F8', kakao: 'FFF1BF', kb: 'EEDFCF', kbank: 'E8DCF6' },
+    type: { in: '#1565c0', out: '#d32f2f', tr: '#757575' },
+    status: { 미납: '#d32f2f', 예정: '#ef8a00', 완료: '#2e7d32', 대기: '#9e9e9e', 해당없음: '#9e9e9e' },
+    statusFill: { 미납: 'F8D0D0', 예정: 'FFE3BF', 완료: 'D5EDD7', 해당없음: 'EEEEEE' },
+    cat: { 자동차할부: '#3949ab', 카드대금: '#e53935', '대출 상환': '#8e24aa', '학자금 상환': '#00897b', 생활비: '#fb8c00', 세금: '#6d4c41', 사업경비: '#1e88e5', 기타지출: '#757575',
+      급여: '#1565c0', 용역대금: '#f9a825', 사업수입: '#795548', '통장협의회 수당': '#7b1fa2', 이자: '#00838f', 기타수입: '#9e9e9e' },
+    pal: ['#c62828', '#2e7d32', '#ad1457', '#0277bd', '#ef6c00', '#4e342e', '#6a1b9a', '#00695c', '#9e9d24', '#37474f'],
+  };
+  const PAL_ACCT = ['#1f5fbf', '#e0b000', '#8a5a2b', '#7b3fbf'];
+  const PAL_CARD = ['#37474f', '#c2185b', '#00796b', '#5d4037', '#455a64', '#ad1457'];
+  function acctColor(s, id) {
+    if (COLORS.acct[id]) return COLORS.acct[id];
+    const ci = (s.cards || []).findIndex(c => c.id === id); if (ci >= 0) return PAL_CARD[ci % PAL_CARD.length];
+    const ai = s.accounts.findIndex(a => a.id === id); return ai >= 0 ? PAL_ACCT[ai % 4] : '#757575';
+  }
+  function catColor(name) { if (COLORS.cat[name]) return COLORS.cat[name]; let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return COLORS.pal[h % COLORS.pal.length]; }
+
+  function defaultSettings(today) {
+    return {
+      startDate: today.slice(0, 8) + '01',
+      accounts: ACCTS.map(a => ({ ...a, start: 0 })),
+      fixed: FIXED.map((n, i) => ({ id: 'f' + (i + 1), name: n, amount: 0, day: '', acct: 'ibk', end: '', variable: n === '카드대금', card: '' })),
+      cards: [],
+      inCats: IN_CATS.slice(),
+      outCats: OUT_CATS.slice(),
+    };
+  }
+
+  const monthOf = d => d.slice(0, 7);
+  const toInt = v => { const n = Math.trunc(Number(String(v).replace(/[^0-9-]/g, ''))); return Number.isFinite(n) ? n : 0; };
+  const sortTx = txs => txs.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0));
+  const outCats = s => [...s.fixed.filter(f => !f.card).map(f => f.name), ...s.outCats.filter(c => !s.fixed.some(f => f.name === c))];
+  const cardOf = (s, id) => (s.cards || []).find(c => c.id === id);
+  const isCredit = (s, id) => { const c = cardOf(s, id); return !!(c && c.kind === 'credit'); };
+  const acctName = (s, id) => { const a = s.accounts.find(x => x.id === id); if (a) return a.name; const c = cardOf(s, id); return c ? c.name : id; };
+  // 통장 + 신용카드(부채 계정: 시작잔액 = −미결제액)
+  const allAccts = s => [...s.accounts, ...(s.cards || []).filter(c => c.kind === 'credit').map(c => ({ id: c.id, name: c.name, use: '신용카드', start: -(c.start || 0), credit: true }))];
+  function normalize(s, today) {
+    const d = defaultSettings(today);
+    const n = { ...d, ...s };
+    n.cards = Array.isArray(n.cards) ? n.cards : [];
+    n.fixed = (n.fixed || []).map(f => ({ card: '', variable: false, end: '', day: '', amount: 0, acct: n.accounts[0].id, ...f }));
+    return n;
+  }
+  function methodLabel(s, t) {
+    if (t.type !== 'out') return '';
+    if (t.method === 'check') return '체크카드 ' + acctName(s, t.card);
+    if (t.method === 'credit') return '신용카드 ' + acctName(s, t.acct);
+    return '통장출금';
+  }
+
+  // 이체는 보내는 통장 출금, 받는 통장 입금으로 펼친다
+  function legs(s, txs) {
+    const out = [];
+    for (const t of sortTx(txs)) {
+      if (t.type === 'tr') {
+        const cp = isCredit(s, t.to);
+        out.push({ date: t.date, acct: t.acct, kind: '이체출금', cat: (cp ? '카드대금→' : '이체→') + acctName(s, t.to), inAmt: 0, outAmt: t.amount, memo: t.memo || '', method: cp ? '카드대금 납부' : '이체' });
+        out.push({ date: t.date, acct: t.to, kind: '이체입금', cat: (cp ? '카드대금←' : '이체←') + acctName(s, t.acct), inAmt: t.amount, outAmt: 0, memo: t.memo || '', method: cp ? '카드대금 납부' : '이체' });
+      } else if (t.type === 'in') {
+        out.push({ date: t.date, acct: t.acct, kind: '입금', cat: t.cat, inAmt: t.amount, outAmt: 0, memo: t.memo || '', method: '' });
+      } else {
+        out.push({ date: t.date, acct: t.acct, kind: '출금', cat: t.cat, inAmt: 0, outAmt: t.amount, memo: t.memo || '', method: methodLabel(s, t) });
+      }
+    }
+    return out;
+  }
+
+  function balances(s, txs, uptoDate) {
+    const b = {};
+    for (const a of allAccts(s)) b[a.id] = a.start;
+    for (const l of legs(s, txs)) {
+      if (uptoDate && l.date > uptoDate) continue;
+      if (b[l.acct] === undefined) continue;
+      b[l.acct] += l.inAmt - l.outAmt;
+    }
+    return b;
+  }
+
+  function lastDay(month) { const [y, m] = month.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+  function addMonth(month, k) { let [y, m] = month.split('-').map(Number); m += k; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return y + '-' + String(m).padStart(2, '0'); }
+
+  function monthRange(s, txs, today) {
+    let lo = monthOf(s.startDate), hi = monthOf(today);
+    for (const t of txs) { const m = monthOf(t.date); if (m < lo) lo = m; if (m > hi) hi = m; }
+    const r = []; for (let m = lo; m <= hi; m = addMonth(m, 1)) r.push(m);
+    return r;
+  }
+
+  function monthSummary(s, txs, month) {
+    let income = 0, expense = 0; const byCat = {}; const byAcct = {}; const byMethod = { bank: 0, check: 0, credit: 0 };
+    for (const a of allAccts(s)) byAcct[a.id] = { in: 0, out: 0 };
+    for (const t of txs) if (t.type === 'out' && monthOf(t.date) === month) byMethod[t.method === 'check' || t.method === 'credit' ? t.method : 'bank'] += t.amount;
+    for (const l of legs(s, txs)) {
+      if (monthOf(l.date) !== month) continue;
+      if (byAcct[l.acct]) { byAcct[l.acct].in += l.inAmt; byAcct[l.acct].out += l.outAmt; }
+      if (l.kind === '입금') { income += l.inAmt; byCat['in|' + l.cat] = (byCat['in|' + l.cat] || 0) + l.inAmt; }
+      if (l.kind === '출금') { expense += l.outAmt; byCat['out|' + l.cat] = (byCat['out|' + l.cat] || 0) + l.outAmt; }
+    }
+    const end = balances(s, txs, month + '-' + String(lastDay(month)).padStart(2, '0'));
+    for (const a of allAccts(s)) byAcct[a.id].end = end[a.id];
+    return { income, expense, net: income - expense, byCat, byAcct, byMethod };
+  }
+
+  function dueDate(month, day) {
+    const ld = lastDay(month); const d = day === '' || day == null ? ld : Math.min(Number(day), ld);
+    return month + '-' + String(d).padStart(2, '0');
+  }
+  function minusDays(date, n) { const t = Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10)) - n * 864e5; return new Date(t).toISOString().slice(0, 10); }
+
+  // 완료 / 해당없음 / 미납(출금일 경과) / 예정(출금일 3일 전부터) / 대기
+  function fixedStatus(s, txs, month, today) {
+    return s.fixed.map(f => {
+      const paid = txs.filter(t => monthOf(t.date) === month && (f.card ? t.type === 'tr' && t.to === f.card : t.type === 'out' && t.cat === f.name)).reduce((a, t) => a + t.amount, 0);
+      const due = dueDate(month, f.day);
+      let status;
+      if (paid > 0) status = '완료';
+      else if (f.end && month > f.end) status = '해당없음';
+      else if (today > due) status = '미납';
+      else if (today >= minusDays(due, 3)) status = '예정';
+      else status = '대기';
+      return { f, paid, due, status };
+    });
+  }
+
+  // ---------- 엑셀 ----------
+  const serial = d => (Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(1899, 11, 30)) / 864e5;
+  const col = n => { let s = ''; n++; while (n) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
+  const NUM = '#,##0', DATE = 'yyyy-mm-dd';
+  const N = (v, f) => ({ t: 'n', v, f, z: NUM });
+  const S = (v, f, st) => ({ t: 's', v: String(v), f, st });
+  const HD = { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'E0E0E0' } }, border: { bottom: { style: 'thin', color: { rgb: '000000' } } } };
+  const H = v => S(v, undefined, HD);
+  const TITLE = v => S(v, undefined, { font: { bold: true, sz: 12 } });
+  const fillOf = rgb => ({ fill: { patternType: 'solid', fgColor: { rgb } } });
+  const fontOf = (hex, bold) => ({ font: { color: { rgb: hex.replace('#', '').toUpperCase() }, bold: !!bold } });
+  const KIND = { 입금: 'in', 이체입금: 'tr', 출금: 'out', 이체출금: 'tr' };
+
+  function workbookSpec(s, txs, today) {
+    const L = legs(s, txs);
+    const months = monthRange(s, txs, today);
+    const A = allAccts(s);
+    const last = Math.max(L.length + 1, 2);
+    const rng = c => `거래내역!$${c}$2:$${c}$${last}`;
+
+    // ① 거래내역
+    const tx = [['날짜', '월', '통장/카드', '구분', '항목', '입금', '출금', '메모', '잔액', '결제수단'].map(H)];
+    const run = {}; for (const a of A) run[a.id] = a.start;
+    L.forEach((l, i) => {
+      const r = i + 2;
+      run[l.acct] = (run[l.acct] || 0) + l.inAmt - l.outAmt;
+      tx.push([
+        { t: 'n', v: serial(l.date), z: DATE }, S(monthOf(l.date)), S(acctName(s, l.acct), undefined, fillOf(COLORS.tint[l.acct] || (isCredit(s, l.acct) ? 'E6E6E6' : 'F5F5F5'))), S(l.kind, undefined, fontOf(COLORS.type[KIND[l.kind]], true)), S(l.cat),
+        { ...N(l.inAmt), st: l.inAmt ? fontOf(COLORS.type.in) : undefined }, { ...N(l.outAmt), st: l.outAmt ? fontOf(COLORS.type.out) : undefined }, S(l.memo),
+        N(run[l.acct], `VLOOKUP(C${r},월별요약!$A$3:$C$${2 + A.length},3,FALSE)+SUMIFS(F$2:F${r},C$2:C${r},C${r})-SUMIFS(G$2:G${r},C$2:C${r},C${r})`),
+        S(l.method || ''),
+      ]);
+    });
+
+    // ② 월별요약
+    const sm = [];
+    sm.push([TITLE('통장·카드별 현황 (시작 기준일 ' + s.startDate + ', 출력일 ' + today + ', 신용카드 음수 = 미결제액)')]);
+    sm.push(['통장/카드', '용도', '시작잔액', '입금합계', '출금합계', '현재잔액'].map(H));
+    const bal = balances(s, txs);
+    A.forEach((a, i) => {
+      const r = i + 3;
+      const inS = L.filter(l => l.acct === a.id).reduce((x, l) => x + l.inAmt, 0);
+      const outS = L.filter(l => l.acct === a.id).reduce((x, l) => x + l.outAmt, 0);
+      sm.push([S(a.name, undefined, { ...fillOf(COLORS.tint[a.id] || (a.credit ? 'E6E6E6' : 'F5F5F5')), font: { bold: true } }), S(a.use), N(a.start), N(inS, `SUMIFS(${rng('F')},${rng('C')},A${r})`), N(outS, `SUMIFS(${rng('G')},${rng('C')},A${r})`), N(bal[a.id], `C${r}+D${r}-E${r}`)]);
+    });
+    const tr = A.length + 3, a1 = 3, a2 = A.length + 2;
+    const tot = k => A.reduce((x, a) => x + k(a), 0);
+    sm.push([H('합계'), H(''),
+      N(tot(a => a.start), `SUM(C${a1}:C${a2})`),
+      N(L.reduce((x, l) => x + l.inAmt, 0), `SUM(D${a1}:D${a2})`),
+      N(L.reduce((x, l) => x + l.outAmt, 0), `SUM(E${a1}:E${a2})`),
+      N(tot(a => bal[a.id]), `SUM(F${a1}:F${a2})`)]);
+    sm.push([]);
+    sm.push([TITLE('월별 수입·지출(이체 제외) 및 통장별 월말잔액')]);
+    sm.push(['월', '월말일', '수입', '지출', '순증감', ...A.map(a => a.name + ' 월말'), '월말 합계'].map(H));
+    months.forEach(m => {
+      const r = sm.length + 1; const ms = monthSummary(s, txs, m);
+      const row = [S(m), { t: 'n', v: serial(m + '-' + lastDay(m)), z: DATE },
+        N(ms.income, `SUMIFS(${rng('F')},${rng('B')},A${r},${rng('D')},"입금")`),
+        N(ms.expense, `SUMIFS(${rng('G')},${rng('B')},A${r},${rng('D')},"출금")`),
+        N(ms.net, `C${r}-D${r}`)];
+      A.forEach((a, i) => {
+        const ar = i + 3;
+        row.push(N(ms.byAcct[a.id].end, `$C$${ar}+SUMIFS(${rng('F')},${rng('C')},$A$${ar},${rng('A')},"<="&$B${r})-SUMIFS(${rng('G')},${rng('C')},$A$${ar},${rng('A')},"<="&$B${r})`));
+      });
+      row.push(N(tot(a => ms.byAcct[a.id].end), `SUM(${col(5)}${r}:${col(4 + A.length)}${r})`));
+      sm.push(row);
+    });
+    sm.push([]);
+    sm.push([TITLE('항목별 월 합계')]);
+    sm.push(['구분', '항목', ...months, '합계'].map(H));
+    const hr = sm.length;
+    const cats = [...s.inCats.map(c => ['입금', c]), ...outCats(s).map(c => ['출금', c])];
+    for (const t of txs) {
+      if (t.type === 'in' && !cats.some(c => c[0] === '입금' && c[1] === t.cat)) cats.push(['입금', t.cat]);
+      if (t.type === 'out' && !cats.some(c => c[0] === '출금' && c[1] === t.cat)) cats.push(['출금', t.cat]);
+    }
+    cats.forEach(([k, c]) => {
+      const r = sm.length + 1; const amtCol = k === '입금' ? 'F' : 'G';
+      const row = [S(k, undefined, fontOf(COLORS.type[k === '입금' ? 'in' : 'out'], true)), S(c, undefined, fontOf(catColor(c), true))]; let sum = 0;
+      months.forEach((m, j) => {
+        const v = L.filter(l => l.kind === k && l.cat === c && monthOf(l.date) === m).reduce((x, l) => x + (k === '입금' ? l.inAmt : l.outAmt), 0);
+        sum += v;
+        row.push(N(v, `SUMIFS(${rng(amtCol)},${rng('B')},${col(2 + j)}$${hr},${rng('D')},$A${r},${rng('E')},$B${r})`));
+      });
+      row.push(N(sum, `SUM(C${r}:${col(1 + months.length)}${r})`));
+      sm.push(row);
+    });
+
+    // ③ 고정지출 납부현황
+    const fx = [];
+    fx.push([TITLE('고정지출 설정')]);
+    fx.push(['항목', '월 금액', '출금일', '출금 통장', '종료 예정', '비고', '연결 카드'].map(H));
+    s.fixed.forEach(f => fx.push([S(f.name), N(f.amount), f.day === '' ? S('') : { t: 'n', v: Number(f.day) }, S(acctName(s, f.acct)), S(f.end || ''), S(f.variable ? '변동금액' : ''), S(f.card ? acctName(s, f.card) : '')]));
+    fx.push([]);
+    fx.push([S('기준일'), { t: 'n', v: serial(today), z: DATE }, S('← 출력일. 출금일이 이 날짜 이후면 "예정"')]);
+    const baseRef = `$B$${fx.length}`;
+    fx.push([]);
+    fx.push([H('월'), ...s.fixed.flatMap(f => [H(f.name + ' 납부액'), H(f.name + ' 상태')])]);
+    months.forEach(m => {
+      const r = fx.length + 1; const st = fixedStatus(s, txs, m, today);
+      const row = [S(m)];
+      s.fixed.forEach((f, i) => {
+        const fr = i + 3; const pc = col(1 + i * 2);
+        const exStatus = st[i].status === '대기' ? '예정' : st[i].status;
+        const ym = `VALUE(LEFT($A${r},4)),VALUE(MID($A${r},6,2))`;
+        const due = `DATE(${ym},MIN(IF($C$${fr}="",31,$C$${fr}),DAY(DATE(${ym}+1,0))))`;
+        row.push(N(st[i].paid, f.card
+          ? `SUMIFS(${rng('G')},${rng('B')},$A${r},${rng('D')},"이체출금",${rng('E')},"카드대금→"&$G$${fr})`
+          : `SUMIFS(${rng('G')},${rng('B')},$A${r},${rng('D')},"출금",${rng('E')},$A$${fr})`));
+        row.push(S(exStatus, `IF(${pc}${r}>0,"완료",IF(AND($E$${fr}<>"",$A${r}>$E$${fr}),"해당없음",IF(${due}<${baseRef},"미납","예정")))`, { ...fillOf(COLORS.statusFill[exStatus] || 'FFFFFF'), ...fontOf(COLORS.status[exStatus] || '#000000', true), alignment: { horizontal: 'center' } }));
+      });
+      fx.push(row);
+    });
+
+    return [
+      { name: '거래내역', rows: tx, cols: [11, 9, 13, 9, 18, 12, 12, 18, 13, 18] },
+      { name: '월별요약', rows: sm, cols: [16, 14, 13, 13, 13, ...A.map(() => 14), 13] },
+      { name: '고정지출', rows: fx, cols: [12, ...s.fixed.flatMap(() => [14, 10])] },
+    ];
+  }
+
+  function toWorkbook(XLSX, spec) {
+    const wb = XLSX.utils.book_new();
+    for (const sh of spec) {
+      const ws = {}; let maxC = 0;
+      sh.rows.forEach((row, r) => row.forEach((c, ci) => {
+        if (!c) return; maxC = Math.max(maxC, ci);
+        const cell = { t: c.t, v: c.v }; if (c.f) cell.f = c.f; if (c.z) cell.z = c.z;
+        if (c.st || c.z) cell.s = { ...(c.st || {}), ...(c.z ? { numFmt: c.z } : {}) };
+        ws[col(ci) + (r + 1)] = cell;
+      }));
+      ws['!ref'] = 'A1:' + col(Math.max(maxC, 0)) + Math.max(sh.rows.length, 1);
+      ws['!cols'] = sh.cols.map(w => ({ wch: w }));
+      XLSX.utils.book_append_sheet(wb, ws, sh.name);
+    }
+    return wb;
+  }
+
+  return { allAccts, normalize, cardOf, isCredit, methodLabel, COLORS, acctColor, catColor, defaultSettings, legs, balances, monthOf, monthRange, monthSummary, fixedStatus, dueDate, workbookSpec, toWorkbook, toInt, sortTx, outCats, acctName, addMonth, lastDay };
+})();
+if (typeof module !== 'undefined') module.exports = Core;
+
+</script>
+<script>
+{
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const won = n => Number(n || 0).toLocaleString('ko-KR');
+const pad = n => String(n).padStart(2, '0');
+const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const AC = id => Core.acctColor(S, id);
+const CC = n => Core.catColor(n);
+const TX_ON = h => { const n = parseInt(h.slice(1), 16), L = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return L > 0.6 ? '#111' : '#fff'; };
+const daysSince = d => Math.floor((new Date(todayStr() + 'T00:00:00') - new Date(d + 'T00:00:00')) / 864e5);
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const dayLabel = d => { const x = new Date(d + 'T00:00:00'); return `${+d.slice(5, 7)}월 ${+d.slice(8)}일 (${WD[x.getDay()]})`; };
+
+let S = Core.defaultSettings(todayStr());
+let TX = [];
+let view = 'home', month = Core.monthOf(todayStr()), filt = 'all';
+let store = null; // {saveSettings, saveTx, delTx}
+$('#add').disabled = true;
+let lastExport = '';
+
+function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 2200); }
+
+// ---------- 화면 ----------
+const VIEWS = ['home', 'cal', 'list', 'sum', 'set'];
+let calDay = todayStr();
+const credits = () => (S.cards || []).filter(c => c.kind === 'credit');
+const checks = () => (S.cards || []).filter(c => c.kind === 'check');
+const man = n => { const a = Math.abs(n); return a >= 1e8 ? (n / 1e8).toFixed(1).replace(/\.0$/, '') + '억' : a >= 1e4 ? (a >= 1e5 ? Math.round(n / 1e4) : (n / 1e4).toFixed(1).replace(/\.0$/, '')) + '만' : String(n); };
+const txTitle = t => t.type === 'tr' ? (Core.isCredit(S, t.to) ? `카드대금 ${Core.acctName(S, t.acct)} → ${Core.acctName(S, t.to)}` : `이체 ${Core.acctName(S, t.acct)} → ${Core.acctName(S, t.to)}`) : t.cat;
+const txSub = t => t.type === 'tr' ? (t.memo || '') : (t.type === 'out' ? Core.methodLabel(S, t) + (t.method === 'bank' || !t.method ? ' · ' + Core.acctName(S, t.acct) : '') : Core.acctName(S, t.acct)) + (t.memo ? ' · ' + t.memo : '');
+const txDotAcct = t => t.type === 'out' && t.method === 'check' ? t.card : t.acct;
+const txRow = t => `<div class="row" role="button" tabindex="0" data-id="${esc(t.id)}"><span class="dot" style="--c:${AC(txDotAcct(t))}"></span><div class="grow"><div class="t">${t.type === 'tr' ? '' : `<span class="dot" style="--c:${CC(t.cat)};width:8px;height:8px;border-radius:2px"></span>`}${esc(txTitle(t))}</div><div class="d">${esc(txSub(t))}</div></div><div class="num amt ${esc(t.type)}">${won(t.amount)}</div></div>`;
+function bindRows(root) { root.querySelectorAll('[data-id]').forEach(r => { const go = () => openSheet(TX.find(t => t.id === r.dataset.id)); r.onclick = go; r.onkeydown = e => { if (e.key === 'Enter') go(); }; }); }
+function dayTotals(d) { let i = 0, o = 0; for (const t of TX) if (t.date === d) { if (t.type === 'in') i += t.amount; else if (t.type === 'out') o += t.amount; } return { i, o }; }
+
+function render() {
+  for (const v of VIEWS) $('#v-' + v).hidden = v !== view;
+  document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-current', b.dataset.v === view));
+  ({ home: rHome, cal: rCal, list: rList, sum: rSum, set: rSet })[view]();
+}
+
+function rHome() {
+  const t = todayStr(), m = Core.monthOf(t), bal = Core.balances(S, TX), ms = Core.monthSummary(S, TX, m);
+  const bank = S.accounts.reduce((a, x) => a + bal[x.id], 0), owe = credits().reduce((a, c) => a - bal[c.id], 0);
+  const fs = Core.fixedStatus(S, TX, m, t);
+  const today = Core.sortTx(TX).filter(x => x.date === t).reverse(), tt = dayTotals(t);
+  $('#v-home').innerHTML = `
+    <div class="total"><div class="k">순자산 · ${esc(t)} 기준</div><div class="v num">${won(bank - owe)}원</div>
+      <div class="sub">통장 합계 ${won(bank)} − 신용카드 미결제 ${won(owe)}</div></div>
+    <div class="accts">${S.accounts.map(a => `<div class="acct" style="--c:${AC(a.id)}"><b>${esc(a.name)}</b><span>${esc(a.use)}</span><div class="num">${won(bal[a.id])}</div></div>`).join('')}</div>
+    ${credits().length ? `<h2>신용카드 미결제</h2>${credits().map(c => `<div class="row"><span class="dot" style="--c:${AC(c.id)}"></span><div class="grow"><div class="t">${esc(c.name)}</div><div class="d">결제 ${esc(Core.acctName(S, c.acct))}${c.payDay ? ' · 매월 ' + esc(c.payDay) + '일' : ''}</div></div><div class="num amt out">${won(-bal[c.id])}</div></div>`).join('')}` : ''}
+    <h2>오늘 <span class="sub">${esc(dayLabel(t))}</span></h2>
+    ${today.length ? `<div class="io two"><div><div class="k">입금</div><div class="num cin">${won(tt.i)}</div></div><div><div class="k">지출</div><div class="num cout">${won(tt.o)}</div></div></div><div id="today">${today.slice(0, 6).map(txRow).join('')}</div>${today.length > 6 ? `<div class="sub" style="margin-top:6px">외 ${today.length - 6}건 · 달력 탭에서 전체 보기</div>` : ''}`
+      : `<div class="empty">오늘 기록 없음 · 아래 [+ 입력]으로 기록하세요.</div>`}
+    <h2>${+m.slice(5)}월 수입·지출 <span class="sub">이체·카드대금 제외</span></h2>
+    <div class="io"><div><div class="k">수입</div><div class="num cin">${won(ms.income)}</div></div><div><div class="k">지출</div><div class="num cout">${won(ms.expense)}</div></div><div><div class="k">순증감</div><div class="num">${won(ms.net)}</div></div></div>
+    <h2>${+m.slice(5)}월 고정지출</h2>
+    ${fs.map((x, i) => `<div class="row"><div class="grow"><div class="t"><span class="dot" style="--c:${CC(x.f.name)}"></span>${esc(x.f.name)}</div><div class="d">${x.f.day === '' ? '출금일 미설정' : `매월 ${esc(x.f.day)}일`} · ${esc(Core.acctName(S, x.f.acct))}${x.f.card ? ' → ' + esc(Core.acctName(S, x.f.card)) : ''} · ${x.paid ? won(x.paid) + '원 납부' : x.f.card ? '미결제액 납부' : x.f.variable ? '변동금액' : won(x.f.amount) + '원'}</div></div>
+      <span class="tag ${esc(x.status)}">${esc(x.status)}</span>${x.status === '완료' || x.status === '해당없음' ? '' : `<button class="btn sm" data-pay="${i}">납부</button>`}</div>`).join('') || '<div class="empty">고정지출이 없습니다. 설정에서 추가하세요.</div>'}
+    ${TX.length && (!lastExport || daysSince(lastExport) >= 7) ? `<div class="note"><b>엑셀 백업 권장</b> · 마지막 저장 ${lastExport ? esc(lastExport) + ' (' + daysSince(lastExport) + '일 전)' : '없음'}. 설정 탭에서 엑셀로 저장해 두세요.</div>` : ''}
+    ${S.accounts.every(a => !a.start) && !TX.length ? `<div class="note">처음이시면 <b>설정</b>에서 통장 시작 잔액, 카드, 고정지출을 먼저 입력해 주세요.</div>` : ''}`;
+  const td = $('#today'); if (td) bindRows(td);
+  document.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => {
+    const f = S.fixed[+b.dataset.pay];
+    if (f.card) openSheet({ type: 'tr', mode: 'card', acct: f.acct, to: f.card, amount: Math.max(0, -Core.balances(S, TX)[f.card] || 0) || '', date: todayStr(), memo: '' });
+    else openSheet({ type: 'out', method: 'bank', acct: f.acct, cat: f.name, amount: f.variable ? '' : f.amount, date: todayStr(), memo: '' });
+  });
+}
+
+function mnav() {
+  return `<div class="mnav"><button class="btn sm" data-mv="-1" aria-label="이전 달">◀</button><b>${esc(month.slice(0, 4))}년 ${+month.slice(5)}월</b><button class="btn sm" data-mv="1" aria-label="다음 달">▶</button></div>`;
+}
+function bindMnav() { document.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { month = Core.addMonth(month, +b.dataset.mv); if (view === 'cal') calDay = month + '-01'; render(); }); }
+
+function rCal() {
+  const [y, m] = month.split('-').map(Number), first = new Date(y, m - 1, 1).getDay(), ld = Core.lastDay(month), t = todayStr();
+  let cells = '';
+  for (let i = 0; i < first; i++) cells += '<div class="cd blank"></div>';
+  for (let d = 1; d <= ld; d++) {
+    const ds = month + '-' + pad(d), x = dayTotals(ds), wd = (first + d - 1) % 7;
+    cells += `<button class="cd${ds === t ? ' today' : ''}${ds === calDay ? ' sel' : ''}${wd === 0 ? ' sun' : wd === 6 ? ' sat' : ''}" data-day="${ds}"><b>${d}</b>${x.i ? `<i class="ci">+${man(x.i)}</i>` : ''}${x.o ? `<i class="co">−${man(x.o)}</i>` : ''}</button>`;
+  }
+  const list = Core.sortTx(TX).filter(x => x.date === calDay).reverse(), dt = dayTotals(calDay);
+  $('#v-cal').innerHTML = mnav() + `<div class="cal"><div class="wk">${WD.map(w => `<span>${w}</span>`).join('')}</div><div class="grid7">${cells}</div></div>
+    <h2>${esc(dayLabel(calDay))} <span class="sub"><span style="color:var(--in)">+${won(dt.i)}</span> · <span style="color:var(--out)">−${won(dt.o)}</span></span></h2>
+    <div id="dlist">${list.length ? list.map(txRow).join('') : '<div class="empty">기록 없음</div>'}</div>
+    <div class="acts"><button class="btn" id="dayadd">이 날짜로 입력</button></div>`;
+  bindMnav(); bindRows($('#dlist'));
+  document.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { calDay = b.dataset.day; render(); });
+  $('#dayadd').onclick = () => openSheet({ date: calDay });
+}
+
+function rList() {
+  const list = Core.sortTx(TX).filter(t => Core.monthOf(t.date) === month && (filt === 'all' || t.acct === filt || t.to === filt || t.card === filt)).reverse();
+  const opts = [['all', '전체'], ...Core.allAccts(S).map(a => [a.id, a.name]), ...checks().map(c => [c.id, c.name])];
+  let html = mnav() + `<div class="chips">${opts.map(([k, n]) => `<button class="chip" data-f="${esc(k)}" aria-pressed="${filt === k}"${k === 'all' ? '' : ` style="--c:${AC(k)};--t:${TX_ON(AC(k))}"`}>${k === 'all' ? '' : `<span class="dot" style="--c:${AC(k)}"></span>`}${esc(n)}</button>`).join('')}</div>`;
+  if (!list.length) html += `<div class="empty">이 달에 기록된 거래가 없습니다.</div>`;
+  let last = '';
+  for (const t of list) { if (t.date !== last) { html += `<div class="day">${esc(dayLabel(t.date))}</div>`; last = t.date; } html += txRow(t); }
+  $('#v-list').innerHTML = html;
+  bindMnav(); bindRows($('#v-list'));
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filt = b.dataset.f; render(); });
+}
+
+function rSum() {
+  const ms = Core.monthSummary(S, TX, month);
+  const cats = Object.entries(ms.byCat).sort((a, b) => b[1] - a[1]);
+  const mx = k => Math.max(1, ...cats.filter(c => c[0].startsWith(k + '|')).map(c => c[1]));
+  const catRows = k => { const r = cats.filter(c => c[0].startsWith(k + '|')), m = mx(k); return r.length ? r.map(([n, v]) => { const nm = n.slice(k.length + 1); return `<div class="row" style="display:block"><div style="display:flex;justify-content:space-between;gap:8px"><span><span class="dot" style="--c:${CC(nm)}"></span>${esc(nm)}</span><span class="num">${won(v)}</span></div><div class="bar"><i style="width:${(v / m * 100).toFixed(1)}%;--c:${CC(nm)}"></i></div></div>`; }).join('') : '<div class="empty">없음</div>'; };
+  const meth = [['bank', '통장 출금', '#546e7a'], ['check', '체크카드', '#00897b'], ['credit', '신용카드', '#c2185b']], mm = Math.max(1, ...meth.map(x => ms.byMethod[x[0]]));
+  const cardOut = c => TX.filter(t => t.type === 'out' && t.method === 'check' && t.card === c.id && Core.monthOf(t.date) === month).reduce((a, t) => a + t.amount, 0);
+  const months = Core.monthRange(S, TX, todayStr()).slice(-6), A = Core.allAccts(S);
+  $('#v-sum').innerHTML = mnav() + `
+    <div class="io"><div><div class="k">수입</div><div class="num cin">${won(ms.income)}</div></div><div><div class="k">지출</div><div class="num cout">${won(ms.expense)}</div></div><div><div class="k">순증감</div><div class="num">${won(ms.net)}</div></div></div>
+    <h2>결제수단별 지출</h2>
+    ${meth.map(([k, n, c]) => `<div class="row" style="display:block"><div style="display:flex;justify-content:space-between"><span><span class="dot" style="--c:${c}"></span>${n}</span><span class="num">${won(ms.byMethod[k])}</span></div><div class="bar"><i style="width:${(ms.byMethod[k] / mm * 100).toFixed(1)}%;--c:${c}"></i></div></div>`).join('')}
+    ${checks().length ? `<div class="sub" style="margin-top:8px">체크카드별: ${checks().map(c => esc(c.name) + ' ' + won(cardOut(c))).join(' · ')}</div>` : ''}
+    <h2>통장·카드별</h2>
+    <table><thead><tr><th>통장/카드</th><th class="num">입금</th><th class="num">출금·사용</th><th class="num">월말잔액</th></tr></thead><tbody>
+    ${A.map(a => `<tr><td><span class="dot" style="--c:${AC(a.id)}"></span>${esc(a.name)}</td><td class="num" style="color:var(--in)">${won(ms.byAcct[a.id].in)}</td><td class="num" style="color:var(--out)">${won(ms.byAcct[a.id].out)}</td><td class="num"><b>${won(ms.byAcct[a.id].end)}</b></td></tr>`).join('')}
+    </tbody></table><div class="sub" style="margin-top:6px">이체·카드대금 납부 포함. 신용카드 월말잔액의 음수는 미결제액입니다.</div>
+    <h2>지출 항목</h2>${catRows('out')}
+    <h2>수입 항목</h2>${catRows('in')}
+    <h2>최근 월별 추이</h2>
+    <table><thead><tr><th>월</th><th class="num">수입</th><th class="num">지출</th><th class="num">월말 순자산</th></tr></thead><tbody>
+    ${months.map(m => { const x = Core.monthSummary(S, TX, m); return `<tr><td>${esc(m)}</td><td class="num" style="color:var(--in)">${won(x.income)}</td><td class="num" style="color:var(--out)">${won(x.expense)}</td><td class="num">${won(A.reduce((a, c) => a + x.byAcct[c.id].end, 0))}</td></tr>`; }).join('')}
+    </tbody></table>`;
+  bindMnav();
+}
+
+let delFix = -1, delCard = -1;
+function rSet() {
+  const acctOpts = sel => S.accounts.map(a => `<option value="${esc(a.id)}"${a.id === sel ? ' selected' : ''}>${esc(a.name)}</option>`).join('');
+  const cardOpts = sel => `<option value="">연결 안 함</option>` + credits().map(c => `<option value="${esc(c.id)}"${c.id === sel ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+  const catList = (k, n) => `<div class="sub">${n}</div>${S[k].map((c, i) => `<div class="row" style="padding:6px 0"><span class="dot" style="--c:${CC(c)}"></span><div class="grow">${esc(c)}</div><button class="btn sm" data-up="${k}|${i}" aria-label="${esc(c)} 위로" ${i ? '' : 'disabled'}>▲</button><button class="btn sm" data-rm="${k}|${i}" aria-label="${esc(c)} 삭제">✕</button></div>`).join('')}
+      <div style="display:flex;gap:8px;margin:8px 0 14px"><input class="inp" id="new-${k}" placeholder="새 항목"><button class="btn" data-addc="${k}">추가</button></div>`;
+  $('#v-set').innerHTML = `
+    <h2>엑셀 내보내기</h2>
+    <div class="sub">거래내역 · 월별요약 · 고정지출 3개 시트. 합계와 잔액은 수식으로 들어갑니다.</div>
+    <div class="acts" style="margin-top:10px"><button class="btn pri" id="xls">엑셀(.xlsx) 저장</button></div>
+    <div class="sub" style="margin-top:8px">마지막 엑셀 저장: ${lastExport ? esc(lastExport) : '없음'}</div>
+    <div class="note">기록은 <b>이 휴대폰 안에만</b> 저장됩니다. 앱 아이콘 삭제, Safari 웹사이트 데이터 삭제, 기기 변경 시 기록이 사라지니 엑셀로 자주 저장해 파일 앱·iCloud에 보관해 주세요.</div>
+    <h2>시작 잔액</h2>
+    <label class="f">기준일 (이 날짜의 잔액을 입력)</label><input class="inp" type="date" data-s="startDate" value="${esc(S.startDate)}">
+    ${S.accounts.map((a, i) => `<label class="f"><span class="dot" style="--c:${AC(a.id)}"></span>${esc(a.name)} · ${esc(a.use)}</label><input class="inp num" inputmode="numeric" data-a="${i}" data-k="start" value="${won(a.start)}">`).join('')}
+    <h2>카드 <button class="btn sm" id="addcard">+ 카드 추가</button></h2>
+    ${(S.cards || []).map((c, i) => `<div class="fx" style="border-left:6px solid ${AC(c.id)}">
+      <div class="grid2"><div><label class="f">카드명</label><input class="inp" data-c="${i}" data-k="name" value="${esc(c.name)}"></div>
+      <div><label class="f">종류</label><select class="inp" data-c="${i}" data-k="kind"><option value="check"${c.kind === 'check' ? ' selected' : ''}>체크카드</option><option value="credit"${c.kind === 'credit' ? ' selected' : ''}>신용카드</option></select></div></div>
+      <div class="grid2"><div><label class="f">${c.kind === 'credit' ? '결제 통장' : '연결 통장'}</label><select class="inp" data-c="${i}" data-k="acct">${acctOpts(c.acct)}</select></div>
+      ${c.kind === 'credit' ? `<div><label class="f">결제일</label><input class="inp" inputmode="numeric" data-c="${i}" data-k="payDay" value="${esc(c.payDay || '')}" placeholder="예: 15"></div>` : '<div></div>'}</div>
+      ${c.kind === 'credit' ? `<label class="f">시작 기준일의 미결제액</label><input class="inp num" inputmode="numeric" data-c="${i}" data-k="start" value="${won(c.start || 0)}">` : ''}
+      <div class="acts" style="margin-top:10px"><button class="btn sm" data-delc="${i}">${delCard === i ? '한 번 더 누르면 삭제' : '카드 삭제'}</button></div>
+    </div>`).join('') || '<div class="empty">등록된 카드가 없습니다.</div>'}
+    <h2>고정지출 <button class="btn sm" id="addfix">+ 고정지출 추가</button></h2>
+    ${S.fixed.map((f, i) => `<div class="fx">
+      <label class="f">항목명 (예: 전세대출 이자)</label><input class="inp" data-x="${i}" data-k="name" value="${esc(f.name)}">
+      <div class="grid2"><div><label class="f">월 금액</label><input class="inp num" inputmode="numeric" data-x="${i}" data-k="amount" value="${won(f.amount)}"></div>
+      <div><label class="f">출금일(1~31)</label><input class="inp" inputmode="numeric" data-x="${i}" data-k="day" value="${esc(f.day)}" placeholder="말일"></div></div>
+      <div class="grid2"><div><label class="f">출금 통장</label><select class="inp" data-x="${i}" data-k="acct">${acctOpts(f.acct)}</select></div>
+      <div><label class="f">종료 예정월</label><input class="inp" type="month" data-x="${i}" data-k="end" value="${esc(f.end)}"></div></div>
+      <label class="f">신용카드 대금 연결 (카드대금일 때)</label><select class="inp" data-x="${i}" data-k="card">${cardOpts(f.card)}</select>
+      <label class="f" style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input type="checkbox" data-x="${i}" data-k="variable" ${f.variable ? 'checked' : ''}> 달마다 금액이 다름(납부 시 입력)</label>
+      <div class="acts" style="margin-top:10px"><button class="btn sm" data-delf="${i}">${delFix === i ? '한 번 더 누르면 삭제' : '항목 삭제'}</button></div>
+    </div>`).join('')}
+    <h2>항목 목록</h2>
+    ${catList('outCats', '지출 항목 (고정지출 항목은 자동 포함)')}
+    ${catList('inCats', '수입 항목')}
+    <div class="sub" style="margin:18px 0">저장 위치: 이 휴대폰 · ${store && store.persisted ? '보존 저장 승인됨' : '일반 저장'} · 앱 버전 2.1</div>`;
+  const save = () => saveSettings();
+  document.querySelectorAll('[data-s]').forEach(el => el.onchange = () => { S.startDate = el.value || S.startDate; save(); });
+  document.querySelectorAll('[data-a]').forEach(el => el.onchange = () => { S.accounts[+el.dataset.a].start = Core.toInt(el.value); el.value = won(S.accounts[+el.dataset.a].start); save(); });
+  document.querySelectorAll('[data-c]').forEach(el => el.onchange = () => {
+    const c = S.cards[+el.dataset.c], k = el.dataset.k;
+    if (k === 'start') { c.start = Math.max(0, Core.toInt(el.value)); el.value = won(c.start); }
+    else if (k === 'payDay') { c.payDay = el.value.trim() === '' ? '' : Math.min(31, Math.max(1, Core.toInt(el.value))); el.value = c.payDay; }
+    else if (k === 'name') { const v = el.value.trim(); if (!v) { el.value = c.name; return; } c.name = v; }
+    else if (k === 'kind') {
+      if (TX.some(t => t.acct === c.id || t.to === c.id || t.card === c.id)) { el.value = c.kind; return toast('사용 내역이 있는 카드는 종류를 바꿀 수 없습니다'); }
+      c.kind = el.value; if (c.kind === 'check') S.fixed.forEach(f => { if (f.card === c.id) f.card = ''; });
+      save(); return render();
+    }
+    else c[k] = el.value;
+    save();
+  });
+  document.querySelectorAll('[data-delc]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.delc, c = S.cards[i];
+    if (TX.some(t => t.acct === c.id || t.to === c.id || t.card === c.id)) return toast('사용 내역이 있는 카드는 삭제할 수 없습니다');
+    if (delCard !== i) { delCard = i; return render(); }
+    S.cards.splice(i, 1); S.fixed.forEach(f => { if (f.card === c.id) f.card = ''; }); delCard = -1; save(); render();
+  });
+  $('#addcard').onclick = () => { S.cards.push({ id: 'c' + Date.now().toString(36), name: '카드 ' + (S.cards.length + 1), kind: 'check', acct: S.accounts[0].id, payDay: '', start: 0 }); save(); render(); };
+  document.querySelectorAll('[data-x]').forEach(el => el.onchange = () => {
+    const f = S.fixed[+el.dataset.x], k = el.dataset.k;
+    if (k === 'amount') { f.amount = Core.toInt(el.value); el.value = won(f.amount); }
+    else if (k === 'day') { f.day = el.value.trim() === '' ? '' : Math.min(31, Math.max(1, Core.toInt(el.value))); el.value = f.day; }
+    else if (k === 'variable') f.variable = el.checked;
+    else if (k === 'name') { const old = f.name, nw = el.value.trim(); if (!nw || S.fixed.some(x => x !== f && x.name === nw)) { el.value = old; return toast('같은 이름의 항목이 있습니다'); } f.name = nw; let ch = false; TX.forEach(t => { if (t.type === 'out' && t.cat === old) { t.cat = nw; ch = true; } }); if (ch) store.saveTx(); }
+    else f[k] = el.value;
+    save();
+  });
+  document.querySelectorAll('[data-delf]').forEach(b => b.onclick = () => { const i = +b.dataset.delf; if (delFix !== i) { delFix = i; return render(); } S.fixed.splice(i, 1); delFix = -1; save(); render(); });
+  $('#addfix').onclick = () => { let n = '새 대출', k = 2; while (S.fixed.some(f => f.name === n)) n = '새 대출 ' + k++; S.fixed.push({ id: 'f' + Date.now().toString(36), name: n, amount: 0, day: '', acct: S.accounts[0].id, end: '', variable: false, card: '' }); save(); render(); setTimeout(() => { const els = document.querySelectorAll('[data-k=name][data-x]'); const el = els[els.length - 1]; if (el) { el.scrollIntoView({ block: 'center' }); el.select(); } }, 50); };
+  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.rm.split('|'); S[k].splice(+i, 1); save(); render(); });
+  document.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.up.split('|'), j = +i; [S[k][j - 1], S[k][j]] = [S[k][j], S[k][j - 1]]; save(); render(); });
+  document.querySelectorAll('[data-addc]').forEach(b => b.onclick = () => { const k = b.dataset.addc, v = $('#new-' + k).value.trim(); if (v && !S[k].includes(v)) { S[k].push(v); save(); render(); } });
+  $('#xls').onclick = exportXlsx;
+}
+
+// ---------- 입력 시트 ----------
+let cur = null, delArm = false;
+function openSheet(t) {
+  const base = { type: 'out', method: 'bank', acct: S.accounts[0].id, to: S.accounts[1].id, card: '', cat: '', amount: '', date: todayStr(), memo: '' };
+  cur = t && t.id ? { ...base, ...t } : { ...base, ...(t || {}) };
+  if (cur.type === 'tr' && Core.isCredit(S, cur.to)) cur.mode = 'card';
+  else if (cur.type === 'out' && cur.method === 'credit') { cur.card = cur.acct; }
+  delArm = false; drawSheet(); $('#sheet').classList.add('on');
+}
+function closeSheet() { $('#sheet').classList.remove('on'); cur = null; }
+function drawSheet() {
+  const c = cur, mode = c.type === 'tr' && c.mode === 'card' ? 'card' : c.type;
+  const cats = c.type === 'in' ? S.inCats : Core.outCats(S);
+  const chips = (key, items) => `<div class="chips">${items.map(([v, n]) => { const col = key === 'cat' ? CC(v) : AC(v); return `<button class="chip" data-p="${key}" data-v="${esc(v)}" aria-pressed="${c[key] === v}" style="--c:${col};--t:${TX_ON(col)}"><span class="dot" style="--c:${col}"></span>${esc(n)}</button>`; }).join('')}</div>`;
+  const banks = S.accounts.map(a => [a.id, a.name]);
+  let who = '';
+  if (mode === 'in') who = `<label class="f">통장</label>${chips('acct', banks)}`;
+  else if (mode === 'tr') who = `<label class="f">보내는 통장</label>${chips('acct', banks)}<label class="f">받는 통장</label>${chips('to', S.accounts.filter(a => a.id !== c.acct).map(a => [a.id, a.name]))}`;
+  else if (mode === 'card') who = credits().length ? `<label class="f">신용카드</label>${chips('to', credits().map(x => [x.id, x.name]))}<label class="f">출금 통장</label>${chips('acct', banks)}<div class="sub" style="margin-top:6px">현재 미결제액 ${won(-(Core.balances(S, TX)[c.to] || 0))}원 · 지출로 다시 집계되지 않습니다.</div>` : '<div class="note">설정 → 카드에서 신용카드를 먼저 추가해 주세요.</div>';
+  else {
+    who = `<label class="f">결제수단</label><div class="seg m3">${[['bank', '통장 출금'], ['check', '체크카드'], ['credit', '신용카드']].map(([v, n]) => `<button data-me="${v}" aria-pressed="${c.method === v}">${n}</button>`).join('')}</div>`;
+    if (c.method === 'bank') who += `<label class="f">통장</label>${chips('acct', banks)}`;
+    else { const list = c.method === 'check' ? checks() : credits(); who += list.length ? `<label class="f">${c.method === 'check' ? '체크카드' : '신용카드'}</label>${chips('card', list.map(x => [x.id, x.name + (c.method === 'check' ? ' (' + Core.acctName(S, x.acct) + ')' : '')]))}` : `<div class="note">설정 → 카드에서 ${c.method === 'check' ? '체크카드' : '신용카드'}를 먼저 추가해 주세요.</div>`; }
+  }
+  $('#pan').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><b>${c.id ? '거래 수정' : '거래 입력'}</b><button class="btn sm" id="x">닫기</button></div>
+    <div class="seg s4">${[['in', '입금'], ['out', '지출'], ['tr', '이체'], ['card', '카드대금']].map(([v, n]) => `<button data-ty="${v}" aria-pressed="${mode === v}">${n}</button>`).join('')}</div>
+    <label class="f">금액(원)</label><input class="inp big num" id="f-amt" inputmode="numeric" value="${c.amount === '' ? '' : won(c.amount)}" placeholder="0">
+    ${who}
+    ${mode === 'in' || mode === 'out' ? `<label class="f">항목</label>${chips('cat', cats.map(x => [x, x]))}` : ''}
+    <div class="grid2"><div><label class="f">날짜</label><input class="inp" type="date" id="f-date" value="${esc(c.date)}"></div><div><label class="f">메모</label><input class="inp" id="f-memo" value="${esc(c.memo)}" maxlength="60"></div></div>
+    <div class="sub" id="f-err" style="margin-top:10px;color:var(--out)"></div>
+    <div class="acts">${c.id ? `<button class="btn" id="del">${delArm ? '한 번 더 누르면 삭제' : '삭제'}</button>` : `<button class="btn" id="more">저장 후 계속</button>`}<button class="btn pri" id="ok">저장</button></div>`;
+  const keep = () => { c.amount = $('#f-amt').value === '' ? '' : Core.toInt($('#f-amt').value); c.date = $('#f-date').value; c.memo = $('#f-memo').value; };
+  $('#x').onclick = closeSheet;
+  $('#f-amt').oninput = e => { const v = e.target.value.replace(/[^0-9]/g, ''); e.target.value = v ? won(+v) : ''; };
+  const fixTo = () => { if (c.mode === 'card') { if (!Core.isCredit(S, c.to)) c.to = credits()[0] ? credits()[0].id : ''; } else if (c.to === c.acct || !S.accounts.some(a => a.id === c.to)) c.to = S.accounts.find(a => a.id !== c.acct).id; };
+  document.querySelectorAll('[data-ty]').forEach(b => b.onclick = () => {
+    keep(); const v = b.dataset.ty; c.cat = '';
+    if (v === 'card') { c.type = 'tr'; c.mode = 'card'; const cc = credits()[0]; if (cc) { c.to = cc.id; c.acct = cc.acct; } }
+    else { c.type = v; c.mode = ''; if (!S.accounts.some(a => a.id === c.acct)) c.acct = S.accounts[0].id; }
+    fixTo(); drawSheet();
+  });
+  document.querySelectorAll('[data-me]').forEach(b => b.onclick = () => { keep(); c.method = b.dataset.me; c.card = ''; if (!S.accounts.some(a => a.id === c.acct)) c.acct = S.accounts[0].id; drawSheet(); });
+  document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+    keep(); c[b.dataset.p] = b.dataset.v;
+    if (b.dataset.p === 'to' && c.mode === 'card') { const cc = Core.cardOf(S, c.to); if (cc) c.acct = cc.acct; }
+    if (c.type === 'tr') fixTo(); drawSheet();
+  });
+  const save = cont => {
+    keep(); const err = $('#f-err');
+    if (c.amount === '' || c.amount < 0) return err.textContent = '금액을 입력해 주세요.';
+    if (!c.date) return err.textContent = '날짜를 선택해 주세요.';
+    let t;
+    if (c.type === 'tr') {
+      if (c.mode === 'card' && !Core.isCredit(S, c.to)) return err.textContent = '신용카드를 골라 주세요.';
+      if (c.mode !== 'card' && (c.to === c.acct || !c.to)) return err.textContent = '받는 통장을 골라 주세요.';
+      t = { type: 'tr', acct: c.acct, to: c.to, cat: '', method: '', card: '' };
+    } else if (c.type === 'in') {
+      if (!c.cat) return err.textContent = '항목을 골라 주세요.';
+      t = { type: 'in', acct: c.acct, to: '', cat: c.cat, method: '', card: '' };
+    } else {
+      if (!c.cat) return err.textContent = '항목을 골라 주세요.';
+      if (c.method === 'bank') t = { type: 'out', acct: c.acct, to: '', cat: c.cat, method: 'bank', card: '' };
+      else {
+        const cc = Core.cardOf(S, c.card); if (!cc || cc.kind !== c.method) return err.textContent = '카드를 골라 주세요.';
+        t = c.method === 'check' ? { type: 'out', acct: cc.acct, to: '', cat: c.cat, method: 'check', card: cc.id } : { type: 'out', acct: cc.id, to: '', cat: c.cat, method: 'credit', card: cc.id };
+      }
+    }
+    Object.assign(t, { id: c.id || ('t' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), date: c.date, amount: c.amount, memo: c.memo.trim(), ts: c.ts || Date.now() });
+    const i = TX.findIndex(x => x.id === t.id); if (i >= 0) TX[i] = t; else TX.push(t);
+    store.saveTx(); render();
+    if (cont) { c.amount = ''; c.memo = ''; drawSheet(); toast('저장했습니다 · 다음 건 입력'); setTimeout(() => { const a = $('#f-amt'); if (a) a.focus(); }, 30); }
+    else { closeSheet(); toast(i >= 0 ? '수정했습니다' : '저장했습니다'); }
+  };
+  $('#ok').onclick = () => save(false);
+  const mo = $('#more'); if (mo) mo.onclick = () => save(true);
+  const d = $('#del'); if (d) d.onclick = () => { if (!delArm) { delArm = true; keep(); drawSheet(); return; } TX = TX.filter(x => x.id !== c.id); store.delTx(); closeSheet(); render(); toast('삭제했습니다'); };
+}
+$('#sheet').onclick = e => { if (e.target.id === 'sheet') closeSheet(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && cur) closeSheet(); });
+$('#add').onclick = () => openSheet(view === 'cal' ? { date: calDay } : null);
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => { view = b.dataset.v; render(); window.scrollTo(0, 0); });
+
+// ---------- 엑셀 ----------
+async function exportXlsx() {
+  if (typeof XLSX === 'undefined') return toast('엑셀 기능을 불러오지 못했습니다. 앱을 다시 열어 주세요');
+  const t = todayStr(), name = `입출금기록부_${t}.xlsx`;
+  const buf = XLSX.write(Core.toWorkbook(XLSX, Core.workbookSpec(S, TX, t)), { type: 'array', bookType: 'xlsx' });
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const done = () => { lastExport = t; store.saveMeta({ lastExport }); toast('엑셀 파일을 만들었습니다'); render(); };
+  try {
+    const file = new File([blob], name, { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return done(); }
+  } catch (e) { if (e && e.name === 'AbortError') return toast('저장을 취소했습니다'); }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 30000); done();
+}
+
+// ---------- 저장소 (이 기기 IndexedDB) ----------
+let setTimer = null;
+function saveSettings() { clearTimeout(setTimer); setTimer = setTimeout(() => store.saveSettings(), 400); }
+
+function idbStore() {
+  const open = () => new Promise((res, rej) => { const r = indexedDB.open('cashbook', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  let dbp = null; const db = () => dbp || (dbp = open());
+  const put = async (k, v) => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); };
+  const get = async k => { const d = await db(); return new Promise((res, rej) => { const r = d.transaction('kv').objectStore('kv').get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); };
+  const fail = () => toast('저장하지 못했습니다. 저장 공간을 확인해 주세요');
+  const st = {
+    persisted: false,
+    load: async () => ({ S: await get('settings'), TX: await get('tx'), meta: await get('meta') }),
+    saveSettings: () => put('settings', JSON.parse(JSON.stringify(S))).catch(fail),
+    saveTx: () => put('tx', JSON.parse(JSON.stringify(TX))).catch(fail),
+    delTx: () => put('tx', JSON.parse(JSON.stringify(TX))).catch(fail),
+    saveMeta: m => put('meta', m).catch(() => {}),
+  };
+  return st;
+}
+function lsStore() {
+  const K = 'cashbook-v2', dump = () => { try { localStorage.setItem(K, JSON.stringify({ S, TX, meta: { lastExport } })); } catch (e) { toast('저장하지 못했습니다'); } };
+  return { persisted: false, load: async () => { try { return JSON.parse(localStorage.getItem(K) || '{}'); } catch (e) { return {}; } }, saveSettings: dump, saveTx: dump, delTx: dump, saveMeta: dump };
+}
+
+async function init() {
+  const stat = $('#stat');
+  store = window.indexedDB ? idbStore() : lsStore();
+  try {
+    const d = await store.load();
+    if (d.S) S = Core.normalize(d.S, todayStr());
+    if (Array.isArray(d.TX)) TX = d.TX.filter(t => t && t.id && Number.isFinite(t.amount));
+    if (d.meta && d.meta.lastExport) lastExport = d.meta.lastExport;
+  } catch (e) { store = lsStore(); const d = await store.load(); if (d.S) S = Core.normalize(d.S, todayStr()); if (d.TX) TX = d.TX; }
+  try { if (navigator.storage && navigator.storage.persist) store.persisted = await navigator.storage.persist(); } catch (e) {}
+  $('#add').disabled = false;
+  stat.textContent = '이 휴대폰에 저장';
+  render();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+init();
+}
+</script>
+</body>
+</html>
